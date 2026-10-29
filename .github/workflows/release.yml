@@ -1,0 +1,108 @@
+name: Release
+
+# Push a tag like v1.0.0 to build, test and publish a GitHub release with a portable zip.
+# "Run workflow" (manual) builds the same zip as a downloadable artifact without releasing.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $m = Select-String -Path CMakeLists.txt -Pattern 'project\(HDR_DNG_Merger VERSION (\d+\.\d+\.\d+)'
+          if (-not $m) { throw "Could not read the project version from CMakeLists.txt" }
+          $version = $m.Matches[0].Groups[1].Value
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $tag = "${{ github.ref_name }}".TrimStart("v")
+            if ($tag -ne $version) {
+              throw "Tag v$tag does not match the version in CMakeLists.txt ($version). Update project(... VERSION ...) first."
+            }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "package=HDR_DNG_Merger-$version-win64" >> $env:GITHUB_OUTPUT
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
+      - name: Create cache directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
+
+      # vcpkg at the manifest's builtin-baseline; exports VCPKG_ROOT for the CMake preset
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 75cdbf55732bc8f36e8286d0254feb8083a6dd2a
+
+      - name: Configure
+        run: cmake --preset vs2022-x64 -DHDR_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset release
+
+      - name: Test
+        run: ctest --preset release -j 4
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $pkg = "${{ steps.version.outputs.package }}"
+          $out = Join-Path $env:GITHUB_WORKSPACE "dist/$pkg"
+          New-Item -ItemType Directory -Force $out | Out-Null
+
+          # Applications and the vcpkg DLLs copied next to them (the test runner stays out)
+          $bin = Join-Path $env:GITHUB_WORKSPACE "build/bin/Release"
+          Get-ChildItem $bin -File | Where-Object {
+            ($_.Extension -eq ".exe" -and $_.Name -ne "hdrcore_tests.exe") -or $_.Extension -eq ".dll"
+          } | Copy-Item -Destination $out
+
+          # MSVC runtime, so the zip runs without the Visual C++ Redistributable installed
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC14*.CRT" -Directory |
+                 Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $crt) { throw "MSVC runtime redistributable not found" }
+          Copy-Item "$($crt.FullName)\*.dll" $out
+
+          Copy-Item LICENSE, README.md $out
+
+          foreach ($exe in "hdrmerge_gui.exe", "hdrmerge_cli.exe") {
+            if (-not (Test-Path (Join-Path $out $exe))) { throw "$exe missing from package" }
+          }
+
+          # Smoke test: the packaged CLI starts with only the bundled DLLs
+          & (Join-Path $out "hdrmerge_cli.exe") --version
+          if ($LASTEXITCODE -ne 0) { throw "Packaged CLI failed to start" }
+
+          Compress-Archive -Path $out -DestinationPath "dist/$pkg.zip" -Force
+          Get-ChildItem $out | Format-Table Name, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.package }}
+          path: dist/${{ steps.version.outputs.package }}.zip
+
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: HDR DNG Merger ${{ steps.version.outputs.version }}
+          files: dist/${{ steps.version.outputs.package }}.zip
+          generate_release_notes: true

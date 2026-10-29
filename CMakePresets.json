@@ -1,0 +1,27 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "vs2022-x64",
+      "displayName": "VS 2022 x64 (vcpkg)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
+        "VCPKG_MANIFEST_INSTALL": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug",   "configurePreset": "vs2022-x64", "configuration": "Debug" },
+    { "name": "release", "configurePreset": "vs2022-x64", "configuration": "Release" }
+  ],
+  "testPresets": [
+    { "name": "debug",   "configurePreset": "vs2022-x64", "configuration": "Debug",   "output": { "outputOnFailure": true } },
+    { "name": "release", "configurePreset": "vs2022-x64", "configuration": "Release", "output": { "outputOnFailure": true } }
+  ]
+}

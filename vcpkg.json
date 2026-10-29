@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "hdr-dng-merger",
+  "version-string": "1.0.0",
+  "description": "Merge bracketed raw drone shots into floating-point HDR DNG files",
+  "license": "GPL-3.0-or-later",
+  "builtin-baseline": "75cdbf55732bc8f36e8286d0254feb8083a6dd2a",
+  "dependencies": [
+    "libraw",
+    "tiff",
+    "zlib",
+    { "name": "exiv2", "default-features": false, "features": [ "xmp", "bmff" ] },
+    "spdlog",
+    "nlohmann-json"
+  ],
+  "features": {
+    "cli": {
+      "description": "Command line tool",
+      "dependencies": [ "cli11" ]
+    },
+    "gui": {
+      "description": "Dear ImGui desktop application",
+      "dependencies": [
+        {
+          "name": "imgui",
+          "features": [ "docking-experimental", "glfw-binding", "opengl3-binding" ]
+        },
+        "implot",
+        "glfw3",
+        "glad",
+        "nativefiledialog-extended"
+      ]
+    },
+    "tests": {
+      "description": "Unit tests",
+      "dependencies": [ "catch2" ]
+    }
+  }
+}

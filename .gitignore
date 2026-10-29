@@ -1,0 +1,36 @@
+# Build and IDE artifacts
+build/
+out/
+bin/
+vcpkg_installed/
+.vs/
+*.user
+*.suo
+*.VC.db
+*.opendb
+.cache/
+CMakeUserPresets.json
+
+# Local configurations & UI state
+imgui.ini
+*.log
+build_vcpkg.log
+
+# Local design notes / session handoff (not published)
+docs/
+
+# Private raw photos and local test datasets
+photos/
+tests/data/
+HDR_Output/
+merged_hdr/
+demo_extreme_hdr/
+
+# Output HDR files
+*_HDR.dng
+*_HDR.DNG
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini

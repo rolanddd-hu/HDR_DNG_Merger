@@ -1,0 +1,40 @@
+name: Build and test
+
+on:
+  push:
+    branches: ["**"]   # tag pushes are handled by release.yml
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      # vcpkg binary cache, keyed by the manifest (see actions/cache below)
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
+      - name: Create cache directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
+
+      # vcpkg at the manifest's builtin-baseline; exports VCPKG_ROOT for the CMake preset
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 75cdbf55732bc8f36e8286d0254feb8083a6dd2a
+
+      - name: Configure
+        run: cmake --preset vs2022-x64 -DHDR_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset release
+
+      - name: Test
+        run: ctest --preset release -j 4
