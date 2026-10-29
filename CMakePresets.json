@@ -3,25 +3,44 @@
   "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
   "configurePresets": [
     {
-      "name": "vs2022-x64",
-      "displayName": "VS 2022 x64 (vcpkg)",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
-      "binaryDir": "${sourceDir}/build",
+      "name": "vcpkg-base",
+      "hidden": true,
       "cacheVariables": {
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-windows",
         "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
         "VCPKG_MANIFEST_INSTALL": "ON"
       }
+    },
+    {
+      "name": "vs2022-x64",
+      "displayName": "VS 2022 x64 (vcpkg)",
+      "inherits": "vcpkg-base",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build"
+    },
+    {
+      "name": "ci",
+      "displayName": "Ninja + MSVC from the developer environment (vcpkg)",
+      "description": "Works with any installed Visual Studio version; run from a VS developer prompt.",
+      "inherits": "vcpkg-base",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build-ci",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "debug",   "configurePreset": "vs2022-x64", "configuration": "Debug" },
-    { "name": "release", "configurePreset": "vs2022-x64", "configuration": "Release" }
+    { "name": "debug",      "configurePreset": "vs2022-x64", "configuration": "Debug" },
+    { "name": "release",    "configurePreset": "vs2022-x64", "configuration": "Release" },
+    { "name": "ci-release", "configurePreset": "ci",         "configuration": "Release" }
   ],
   "testPresets": [
-    { "name": "debug",   "configurePreset": "vs2022-x64", "configuration": "Debug",   "output": { "outputOnFailure": true } },
-    { "name": "release", "configurePreset": "vs2022-x64", "configuration": "Release", "output": { "outputOnFailure": true } }
+    { "name": "debug",      "configurePreset": "vs2022-x64", "configuration": "Debug",   "output": { "outputOnFailure": true } },
+    { "name": "release",    "configurePreset": "vs2022-x64", "configuration": "Release", "output": { "outputOnFailure": true } },
+    { "name": "ci-release", "configurePreset": "ci",         "configuration": "Release", "output": { "outputOnFailure": true } }
   ]
 }

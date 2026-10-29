@@ -1,5 +1,7 @@
 # Build and IDE artifacts
 build/
+build-ci/
+build-ci-*.log
 out/
 bin/
 vcpkg_installed/

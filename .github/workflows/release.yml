@@ -36,7 +36,8 @@ jobs:
           "package=HDR_DNG_Merger-$version-win64" >> $env:GITHUB_OUTPUT
 
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v4
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/vcpkg_cache
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
@@ -46,19 +47,34 @@ jobs:
         shell: pwsh
         run: New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
 
+      # CMake + Ninja, and the MSVC developer environment of whatever Visual Studio the image has
+      - uses: lukka/get-cmake@latest
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       # vcpkg at the manifest's builtin-baseline; exports VCPKG_ROOT for the CMake preset
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: 75cdbf55732bc8f36e8286d0254feb8083a6dd2a
 
-      - name: Configure
-        run: cmake --preset vs2022-x64 -DHDR_WARNINGS_AS_ERRORS=ON
+      # No warnings-as-errors here: a new compiler warning should not block a release
+      # (build.yml enforces /WX on every push).
+      - name: Configure (builds the vcpkg dependencies)
+        run: cmake --preset ci
+
+      - name: Save vcpkg binary cache
+        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
 
       - name: Build
-        run: cmake --build --preset release
+        run: cmake --build --preset ci-release
 
       - name: Test
-        run: ctest --preset release -j 4
+        run: ctest --preset ci-release -j 4
 
       - name: Package
         shell: pwsh
@@ -68,7 +84,7 @@ jobs:
           New-Item -ItemType Directory -Force $out | Out-Null
 
           # Applications and the vcpkg DLLs copied next to them (the test runner stays out)
-          $bin = Join-Path $env:GITHUB_WORKSPACE "build/bin/Release"
+          $bin = Join-Path $env:GITHUB_WORKSPACE "build-ci/bin/Release"
           Get-ChildItem $bin -File | Where-Object {
             ($_.Extension -eq ".exe" -and $_.Name -ne "hdrcore_tests.exe") -or $_.Extension -eq ".dll"
           } | Copy-Item -Destination $out

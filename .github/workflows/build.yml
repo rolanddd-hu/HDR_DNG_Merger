@@ -9,13 +9,14 @@ jobs:
   windows:
     runs-on: windows-latest
     env:
-      # vcpkg binary cache, keyed by the manifest (see actions/cache below)
+      # vcpkg binary cache, keyed by the manifest (see the cache steps below)
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
     steps:
       - uses: actions/checkout@v4
 
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v4
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/vcpkg_cache
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
@@ -25,16 +26,30 @@ jobs:
         shell: pwsh
         run: New-Item -ItemType Directory -Force "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
 
+      # CMake + Ninja, and the MSVC developer environment of whatever Visual Studio the image has
+      - uses: lukka/get-cmake@latest
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       # vcpkg at the manifest's builtin-baseline; exports VCPKG_ROOT for the CMake preset
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: 75cdbf55732bc8f36e8286d0254feb8083a6dd2a
 
-      - name: Configure
-        run: cmake --preset vs2022-x64 -DHDR_WARNINGS_AS_ERRORS=ON
+      - name: Configure (builds the vcpkg dependencies)
+        run: cmake --preset ci -DHDR_WARNINGS_AS_ERRORS=ON
+
+      # Saved right after the dependency build, so a later failure does not lose it
+      - name: Save vcpkg binary cache
+        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
 
       - name: Build
-        run: cmake --build --preset release
+        run: cmake --build --preset ci-release
 
       - name: Test
-        run: ctest --preset release -j 4
+        run: ctest --preset ci-release -j 4
