@@ -352,10 +352,17 @@ MergeResult MergeEngine::merge(
         rawWeights[i] = {};
     }
 
-    // Normalize weights
+    // Normalize weights. Feathering spreads a frame's weight into quads where that frame is
+    // clipped (thin bright lines, sky between branches); a clipped green photosite then reads
+    // as magenta. Drop every frame but the darkest from quads where it is clipped itself.
     parallelFor(0, qh, 64, [&](int qy) {
         for (int qx = 0; qx < qw; ++qx) {
             const size_t q = static_cast<size_t>(qy) * qw + qx;
+            for (size_t i = 0; i < numFrames; ++i) {
+                if (i == darkestFrameIdx || weights[i][q] <= 0.f) continue;
+                float vMax = 0.f, vMean = 0.f;
+                if (!sampleQuad(i, qx, qy, vMax, vMean) || vMax > settings.clipThreshold) weights[i][q] = 0.f;
+            }
             float sum = 0.f;
             for (size_t i = 0; i < numFrames; ++i) sum += weights[i][q];
             if (sum > 1e-6f) {
